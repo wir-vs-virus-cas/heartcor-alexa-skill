@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<project name="heartcor-alexa-skill" xmlns:ivy="antlib:org.apache.ivy.ant" basedir=".">
+	<property name="source" location="src" />
+	<property name="doc" location="javadoc" />
+	<property name="bin" location="bin" />
+	<property name="source-test" location="test" />
+	<property name="lib-source" location="lib" />
+	<property name="ivy-conf-build" value="default" />
+	<property name="dist-dir" location="dist" />
+	<property name="reports-dir" location="reports" />
+	<property name="publish-ivy" value="ivy.xml" />
+	<property name="war-bin" location="war/WEB-INF/classes" />
+	<property name="war-libs" location="war/WEB-INF/lib" />
+
+	<path id="project.class.path">
+		<pathelement location="${bin}" />
+		<fileset dir="${lib-source}" includes="*.jar" />
+		<fileset dir="${lib-source}" includes="**/*.jar" />
+	</path>
+
+	<target name="clean" description="Cleans this project">
+		<delete dir="${bin}" failonerror="false" />
+		<delete dir="${reports-dir}" failonerror="false" />
+		<delete dir="${doc}" failonerror="false" />
+	</target>
+
+	<target name="resolve" description="retrieve dependencies with ivy">
+		<ivy:retrieve pattern="${lib-source}/[conf]/[artifact]-([classifier]-)[revision].[ext]" sync="true" />
+		<ivy:report todir="${reports-dir}" graph="false" />
+	</target>
+
+	<target name="update-fallback">
+		<copy file="${lib-source}/${ivy-conf-build}/build-utils-0.0.1.jar" tofile="fallback.jar" />
+	</target>
+
+	<target name="ivy.outdated" description="Check ivy for outdated jars">
+		<ivy:resolve />
+		<ivy:checkdepsupdate showTransitive="false" revisionToCheck="latest.release" />
+	</target>
+
+	<target name='javadoc' description='Generate javadoc'>
+		<javadoc use='true' author='true' version='true' access='package' sourcepath='${source}' packagenames='*.*' destdir='${doc}' windowtitle='${ant.project.name} // ${STAMP}' noqualifier='java.*:javax.*:com.sun.*'>
+			<classpath refid='project.class.path' />
+		</javadoc>
+	</target>
+
+	<target name="compile" description="Compile java source to bytecode">
+		<mkdir dir="${bin}" />
+		<javac srcdir="${source}" includes="**" encoding="utf-8" destdir="${bin}" source="1.8" target="1.8" nowarn="true" debug="true" debuglevel="lines,vars,source">
+			<classpath refid="project.class.path" />
+		</javac>
+		<copy todir="${bin}">
+			<fileset dir="${source}" excludes="**/*.java" />
+		</copy>
+	</target>
+
+	<target name="jar" depends="compile, javadoc" description="Create the jar files">
+		<jar jarfile="${dist-dir}/${ant.project.name}.jar" basedir="${bin}" />
+		<jar jarfile="${dist-dir}/${ant.project.name}-sources.jar" basedir="${source}" />
+		<jar jarfile="${dist-dir}/${ant.project.name}-javadoc.jar" basedir="${doc}" />
+	</target>
+
+	<target name="war" depends="compile" description="Create a war file">
+		<mkdir dir="${war-bin}" />
+		<copy todir="${war-bin}">
+			<fileset dir="${source}" excludes="**/*.java" />
+		</copy>
+		<copy todir="${war-bin}">
+			<fileset dir="${bin}" />
+		</copy>
+		<mkdir dir="${war-libs}" />
+		<copy todir="${war-libs}">
+			<fileset dir="lib/default" includes="**/*.jar" />
+		</copy>
+		<mkdir dir="${dist-dir}" />
+		<zip destfile="${dist-dir}/${ant.project.name}.war" basedir="war" />
+	</target>
+
+	<target name="test" xmlns:jacoco="antlib:org.jacoco.ant">
+		<taskdef uri="antlib:org.jacoco.ant" resource="org/jacoco/ant/antlib.xml" classpathref="project.class.path" />
+		<!-- Clean and compile including tests -->
+		<delete dir="${bin}" failonerror="false" />
+		<mkdir dir="${bin}" />
+		<javac srcdir="${source}" includes="**" encoding="utf-8" destdir="${bin}" source="1.8" target="1.8" nowarn="true" debug="true" debuglevel="lines,vars,source">
+			<classpath refid="project.class.path" />
+		</javac>
+		<copy todir="${bin}">
+			<fileset dir="${source}" excludes="**/*.java" />
+		</copy>
+		<javac srcdir="${source-test}" includes="**" encoding="utf-8" destdir="${bin}" source="1.8" target="1.8" nowarn="true" debug="true" debuglevel="lines,vars,source">
+			<classpath refid="project.class.path" />
+		</javac>
+		<copy todir="${bin}">
+			<fileset dir="${source-test}" excludes="**/*.java" />
+		</copy>
+		<!-- Execute tests -->
+		<mkdir dir="${reports-dir}/junit" />
+		<jacoco:coverage destfile="${reports-dir}/tests.exec">
+			<java classname="org.junit.platform.console.ConsoleLauncher" fork="true" failonerror="false">
+				<classpath>
+					<path refid="project.class.path" />
+				</classpath>
+				<arg value="--scan-classpath" />
+				<arg line="--reports-dir ${reports-dir}/junit" />
+			</java>
+		</jacoco:coverage>
+		<!--Report tests -->
+		<mkdir dir="${reports-dir}/junit" />
+		<junitreport todir="${reports-dir}/junit">
+			<fileset dir="${reports-dir}/junit">
+				<include name="TEST-*.xml" />
+			</fileset>
+			<report format="frames" todir="${reports-dir}/junit/html" />
+		</junitreport>
+		<jacoco:report>
+			<executiondata>
+				<file file="${reports-dir}/tests.exec" />
+			</executiondata>
+			<structure name="${ant.project.name} tests">
+				<classfiles>
+					<fileset dir="${bin}" />
+				</classfiles>
+				<sourcefiles encoding="UTF-8">
+					<fileset dir="${source}" />
+				</sourcefiles>
+			</structure>
+			<html destdir="${reports-dir}/jacoco-html" />
+			<csv destfile="${reports-dir}/jacoco-report.csv" />
+			<xml destfile="${reports-dir}/jacoco-report.xml" />
+		</jacoco:report>
+		<!-- Clean up -->
+	</target>
+
+	<target name="spotbugs" description="Runs spotbugs against the sources">
+		<fail message="Jar file not found - run target jar first!">
+			<condition>
+				<not>
+					<available file="${dist-dir}/${ant.project.name}.jar" />
+				</not>
+			</condition>
+		</fail>
+		<taskdef resource="edu/umd/cs/findbugs/anttask/tasks.properties" classpathref="project.class.path" />
+		<mkdir dir="${reports-dir}" />
+		<spotbugs output="xml" outputFile="${reports-dir}/findbugs.xml" classpathref="project.class.path">
+			<class location="${dist-dir}/${ant.project.name}.jar" />
+			<sourcePath path="${source}" />
+			<auxClasspath refid="project.class.path" />
+		</spotbugs>
+	</target>
+
+	<target name="checkstyle" description="Runs checkstyle against the sources">
+		<mkdir dir="${reports-dir}" />
+		<taskdef resource="com/puppycrawl/tools/checkstyle/ant/checkstyle-ant-task.properties" classpathref="project.class.path" />
+		<checkstyle config="jar:file:${build-utils-jar}!/checkstyle-config.xml" classpathref="project.class.path">
+			<fileset dir="${source}" includes="**/*.java" />
+			<formatter type="xml" toFile="${reports-dir}/checkstyle-result.xml" />
+		</checkstyle>
+	</target>
+
+	<target name="owasp">
+		<taskdef resource="dependency-check-taskdefs.properties" classpathref="project.class.path" />
+		<dependency-check-update />
+		<dependency-check projectname="${ant.project.name}" reportoutputdirectory="${reports-dir}/owasp" reportformat="ALL">
+			<!--suppressionfile path="${basedir}/path/to/suppression.xml" />
+	        <retirejsFilter regex="copyright.*jeremy long" /-->
+			<fileset dir="${lib-source}">
+				<include name="**/*.jar" />
+			</fileset>
+		</dependency-check>
+	</target>
+</project>

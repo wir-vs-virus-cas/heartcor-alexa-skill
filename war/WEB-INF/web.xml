@@ -1,0 +1,17 @@
+<web-app xmlns="http://java.sun.com/xml/ns/javaee" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://java.sun.com/xml/ns/javaee 
+	      http://java.sun.com/xml/ns/javaee/web-app_2_5.xsd"
+	version="2.5">
+
+	<display-name>heartcor-alexa-skill-servlet</display-name>
+
+    <servlet>
+        <servlet-name>heartcor-alexa-skill-servlet</servlet-name>
+        <servlet-class>org.heartcor.alexaskill.HeartcorAlexaServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>heartcor-alexa-skill-servlet</servlet-name>
+        <url-pattern>/main</url-pattern>
+    </servlet-mapping>
+
+</web-app>
